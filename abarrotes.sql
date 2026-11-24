@@ -1,143 +1,147 @@
 -- Base de datos simplificada: abarrotes
 -- Objetivos: inventario, corte de caja y control de empleados
--- Tablas: 9 (antes 15)
+-- Tablas: 9
+-- Convención: cada columna = nombre de la tabla + Campo en camelCase
+--   ej. usuarioId, usuarioContraseña, productoPrecioVenta
+--   Las llaves foráneas llevan el prefijo de su propia tabla + tabla referenciada
+--   ej. compraUsuarioId (en compra, apunta a usuario.usuarioId)
 
 CREATE DATABASE IF NOT EXISTS `abarrotes` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 USE `abarrotes`;
 
 -- ============================================================
 -- EMPLEADOS
--- (rol y turno se integran como columnas; se eliminan tablas rol y turno)
 -- ============================================================
 CREATE TABLE `usuario` (
-  `idusuario`    INT AUTO_INCREMENT PRIMARY KEY,
-  `nombre`       VARCHAR(100) NOT NULL,
-  `correo`       VARCHAR(100) NOT NULL UNIQUE,
-  `passwordhash` VARCHAR(255) NOT NULL,            -- guardar con password_hash(), nunca texto plano
-  `rol`          ENUM('Administrador','Cajero','Almacen') NOT NULL DEFAULT 'Cajero',
-  `turno`        ENUM('Matutino','Vespertino','Nocturno') DEFAULT NULL,
-  `activo`       TINYINT(1) NOT NULL DEFAULT 1     -- 1 = activo, 0 = inactivo
+  `usuarioId`         INT AUTO_INCREMENT PRIMARY KEY,
+  `usuarioNombre`     VARCHAR(100) NOT NULL,
+  `usuarioCorreo`     VARCHAR(100) NOT NULL UNIQUE,
+  `usuarioContraseña` VARCHAR(255) NOT NULL,       -- guardar con password_hash(), nunca texto plano
+  `usuarioRol`        ENUM('Administrador','Cajero','Almacen') NOT NULL DEFAULT 'Cajero',
+  `usuarioTurno`      ENUM('Matutino','Vespertino','Nocturno') DEFAULT NULL,
+  `usuarioActivo`     TINYINT(1) NOT NULL DEFAULT 1 -- 1 = activo, 0 = inactivo
 ) ENGINE=InnoDB;
 
 -- ============================================================
 -- INVENTARIO
--- (se eliminan categoria, cliente y metodo_pago)
 -- ============================================================
 CREATE TABLE `proveedor` (
-  `idproveedor`   INT AUTO_INCREMENT PRIMARY KEY,
-  `nombreempresa` VARCHAR(100) NOT NULL,
-  `telefono`      VARCHAR(20) DEFAULT NULL
+  `proveedorId`            INT AUTO_INCREMENT PRIMARY KEY,
+  `proveedorNombreEmpresa` VARCHAR(100) NOT NULL,
+  `proveedorTelefono`      VARCHAR(20) DEFAULT NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE `producto` (
-  `idproducto`   INT AUTO_INCREMENT PRIMARY KEY,
-  `codigobarras` VARCHAR(50) UNIQUE,
-  `nombre`       VARCHAR(100) NOT NULL,
-  `idproveedor`  INT DEFAULT NULL,
-  `preciocompra` DECIMAL(10,2) DEFAULT NULL,
-  `precioventa`  DECIMAL(10,2) NOT NULL,
-  `stockactual`  INT NOT NULL DEFAULT 0,
-  `stockminimo`  INT NOT NULL DEFAULT 0,
-  FOREIGN KEY (`idproveedor`) REFERENCES `proveedor`(`idproveedor`)
+  `productoId`           INT AUTO_INCREMENT PRIMARY KEY,
+  `productoCodigoBarras` VARCHAR(50) UNIQUE,
+  `productoNombre`       VARCHAR(100) NOT NULL,
+  `productoProveedorId`  INT DEFAULT NULL,
+  `productoPrecioCompra` DECIMAL(10,2) DEFAULT NULL,
+  `productoPrecioVenta`  DECIMAL(10,2) NOT NULL,
+  `productoStockActual`  INT NOT NULL DEFAULT 0,
+  `productoStockMinimo`  INT NOT NULL DEFAULT 0,
+  FOREIGN KEY (`productoProveedorId`) REFERENCES `proveedor`(`proveedorId`)
 ) ENGINE=InnoDB;
 
 -- Compras (entradas de mercancía)
 CREATE TABLE `compra` (
-  `idcompra`    INT AUTO_INCREMENT PRIMARY KEY,
-  `fecha`       DATETIME NOT NULL,
-  `idproveedor` INT NOT NULL,
-  `idusuario`   INT NOT NULL,
-  `total`       DECIMAL(10,2) DEFAULT NULL,
-  FOREIGN KEY (`idproveedor`) REFERENCES `proveedor`(`idproveedor`),
-  FOREIGN KEY (`idusuario`)   REFERENCES `usuario`(`idusuario`)
+  `compraId`          INT AUTO_INCREMENT PRIMARY KEY,
+  `compraFecha`       DATETIME NOT NULL,
+  `compraProveedorId` INT NOT NULL,
+  `compraUsuarioId`   INT NOT NULL,
+  `compraTotal`       DECIMAL(10,2) DEFAULT NULL,
+  FOREIGN KEY (`compraProveedorId`) REFERENCES `proveedor`(`proveedorId`),
+  FOREIGN KEY (`compraUsuarioId`)   REFERENCES `usuario`(`usuarioId`)
 ) ENGINE=InnoDB;
 
 CREATE TABLE `detalle_compra` (
-  `iddetallecompra` INT AUTO_INCREMENT PRIMARY KEY,
-  `idcompra`        INT NOT NULL,
-  `idproducto`      INT NOT NULL,
-  `cantidad`        INT NOT NULL,
-  `costounitario`   DECIMAL(10,2) NOT NULL,
-  FOREIGN KEY (`idcompra`)   REFERENCES `compra`(`idcompra`) ON DELETE CASCADE,
-  FOREIGN KEY (`idproducto`) REFERENCES `producto`(`idproducto`)
+  `detalleCompraId`            INT AUTO_INCREMENT PRIMARY KEY,
+  `detalleCompraCompraId`      INT NOT NULL,
+  `detalleCompraProductoId`    INT NOT NULL,
+  `detalleCompraCantidad`      INT NOT NULL,
+  `detalleCompraCostoUnitario` DECIMAL(10,2) NOT NULL,
+  FOREIGN KEY (`detalleCompraCompraId`)   REFERENCES `compra`(`compraId`) ON DELETE CASCADE,
+  FOREIGN KEY (`detalleCompraProductoId`) REFERENCES `producto`(`productoId`)
 ) ENGINE=InnoDB;
 
 -- Bitácora de entradas y salidas de inventario
 -- tipo: ENTRADA (compra, ajuste +) / SALIDA (venta, merma, ajuste -)
 CREATE TABLE `movimiento_inventario` (
-  `idmovimiento` INT AUTO_INCREMENT PRIMARY KEY,
-  `idproducto`   INT NOT NULL,
-  `tipo`         ENUM('ENTRADA','SALIDA') NOT NULL,
-  `cantidad`     INT NOT NULL,
-  `fecha`        DATETIME NOT NULL,
-  `idusuario`    INT DEFAULT NULL,
-  `referencia`   VARCHAR(100) DEFAULT NULL,        -- ej. 'compra #3', 'venta #12', 'merma'
-  FOREIGN KEY (`idproducto`) REFERENCES `producto`(`idproducto`),
-  FOREIGN KEY (`idusuario`)  REFERENCES `usuario`(`idusuario`)
+  `movimientoInventarioId`         INT AUTO_INCREMENT PRIMARY KEY,
+  `movimientoInventarioProductoId` INT NOT NULL,
+  `movimientoInventarioTipo`       ENUM('ENTRADA','SALIDA') NOT NULL,
+  `movimientoInventarioCantidad`   INT NOT NULL,
+  `movimientoInventarioFecha`      DATETIME NOT NULL,
+  `movimientoInventarioUsuarioId`  INT DEFAULT NULL,
+  `movimientoInventarioReferencia` VARCHAR(100) DEFAULT NULL, -- ej. 'compra #3', 'venta #12', 'merma'
+  FOREIGN KEY (`movimientoInventarioProductoId`) REFERENCES `producto`(`productoId`),
+  FOREIGN KEY (`movimientoInventarioUsuarioId`)  REFERENCES `usuario`(`usuarioId`)
 ) ENGINE=InnoDB;
 
 -- ============================================================
 -- CORTE DE CAJA
--- (turno se quita; el corte queda ligado al empleado)
 -- ============================================================
 CREATE TABLE `corte` (
-  `idcorte`          INT AUTO_INCREMENT PRIMARY KEY,
-  `idusuario`        INT NOT NULL,
-  `fechaapertura`    DATETIME NOT NULL,
-  `fechacierre`      DATETIME DEFAULT NULL,
-  `fondoinicial`     DECIMAL(10,2) NOT NULL,
-  `efectivoesperado` DECIMAL(10,2) DEFAULT NULL,   -- fondo + ventas en efectivo
-  `efectivocontado`  DECIMAL(10,2) DEFAULT NULL,
-  `diferencia`       DECIMAL(10,2) DEFAULT NULL,   -- contado - esperado
-  `estado`           TINYINT(1) NOT NULL DEFAULT 1, -- 1 = abierto, 0 = cerrado
-  FOREIGN KEY (`idusuario`) REFERENCES `usuario`(`idusuario`)
+  `corteId`               INT AUTO_INCREMENT PRIMARY KEY,
+  `corteUsuarioId`        INT NOT NULL,
+  `corteFechaApertura`    DATETIME NOT NULL,
+  `corteFechaCierre`      DATETIME DEFAULT NULL,
+  `corteFondoInicial`     DECIMAL(10,2) NOT NULL,
+  `corteEfectivoEsperado` DECIMAL(10,2) DEFAULT NULL,  -- fondo + ventas en efectivo
+  `corteEfectivoContado`  DECIMAL(10,2) DEFAULT NULL,
+  `corteDiferencia`       DECIMAL(10,2) DEFAULT NULL,  -- contado - esperado
+  `corteEstado`           TINYINT(1) NOT NULL DEFAULT 1, -- 1 = abierto, 0 = cerrado
+  FOREIGN KEY (`corteUsuarioId`) REFERENCES `usuario`(`usuarioId`)
 ) ENGINE=InnoDB;
 
 -- ============================================================
 -- VENTAS
--- (metodo de pago como ENUM; sin cliente)
 -- ============================================================
 CREATE TABLE `venta` (
-  `idventa`    INT AUTO_INCREMENT PRIMARY KEY,
-  `fecha`      DATETIME NOT NULL,
-  `idusuario`  INT NOT NULL,
-  `idcorte`    INT DEFAULT NULL,
-  `metodopago` ENUM('Efectivo','Tarjeta') NOT NULL DEFAULT 'Efectivo',
-  `total`      DECIMAL(10,2) NOT NULL,
-  FOREIGN KEY (`idusuario`) REFERENCES `usuario`(`idusuario`),
-  FOREIGN KEY (`idcorte`)   REFERENCES `corte`(`idcorte`)
+  `ventaId`         INT AUTO_INCREMENT PRIMARY KEY,
+  `ventaFecha`      DATETIME NOT NULL,
+  `ventaUsuarioId`  INT NOT NULL,
+  `ventaCorteId`    INT DEFAULT NULL,
+  `ventaMetodoPago` ENUM('Efectivo','Tarjeta') NOT NULL DEFAULT 'Efectivo',
+  `ventaTotal`      DECIMAL(10,2) NOT NULL,
+  FOREIGN KEY (`ventaUsuarioId`) REFERENCES `usuario`(`usuarioId`),
+  FOREIGN KEY (`ventaCorteId`)   REFERENCES `corte`(`corteId`)
 ) ENGINE=InnoDB;
 
 CREATE TABLE `detalle_venta` (
-  `iddetalle`       INT AUTO_INCREMENT PRIMARY KEY,
-  `idventa`         INT NOT NULL,
-  `idproducto`      INT NOT NULL,
-  `cantidadvendida` INT NOT NULL,
-  `preciounitario`  DECIMAL(10,2) NOT NULL,
-  `subtotal`        DECIMAL(10,2) NOT NULL,
-  FOREIGN KEY (`idventa`)    REFERENCES `venta`(`idventa`) ON DELETE CASCADE,
-  FOREIGN KEY (`idproducto`) REFERENCES `producto`(`idproducto`)
+  `detalleVentaId`              INT AUTO_INCREMENT PRIMARY KEY,
+  `detalleVentaVentaId`         INT NOT NULL,
+  `detalleVentaProductoId`      INT NOT NULL,
+  `detalleVentaCantidadVendida` INT NOT NULL,
+  `detalleVentaPrecioUnitario`  DECIMAL(10,2) NOT NULL,
+  `detalleVentaSubtotal`        DECIMAL(10,2) NOT NULL,
+  FOREIGN KEY (`detalleVentaVentaId`)    REFERENCES `venta`(`ventaId`) ON DELETE CASCADE,
+  FOREIGN KEY (`detalleVentaProductoId`) REFERENCES `producto`(`productoId`)
 ) ENGINE=InnoDB;
 
 -- ============================================================
--- DATOS DE EJEMPLO (tomados de tu dump)
+-- DATOS DE EJEMPLO
 -- ============================================================
-INSERT INTO `usuario` (`nombre`,`correo`,`passwordhash`,`rol`,`turno`,`activo`) VALUES
+INSERT INTO `usuario` (`usuarioNombre`,`usuarioCorreo`,`usuarioContraseña`,`usuarioRol`,`usuarioTurno`,`usuarioActivo`) VALUES
 ('Juan','Juan@Gmail.com','123','Administrador','Matutino',1);
 
-INSERT INTO `proveedor` (`nombreempresa`,`telefono`) VALUES ('Pepsi','4491774574');
+INSERT INTO `proveedor` (`proveedorNombreEmpresa`,`proveedorTelefono`) VALUES ('Pepsi','4491774574');
 
-INSERT INTO `producto` (`codigobarras`,`nombre`,`idproveedor`,`preciocompra`,`precioventa`,`stockactual`,`stockminimo`) VALUES
+INSERT INTO `producto` (`productoCodigoBarras`,`productoNombre`,`productoProveedorId`,`productoPrecioCompra`,`productoPrecioVenta`,`productoStockActual`,`productoStockMinimo`) VALUES
 ('123456789','Pepsi 3L',1,34.00,40.00,2,0);
 
 -- ============================================================
 -- CONSULTAS ÚTILES
 -- ============================================================
 -- Empleados y su estado:
---   SELECT nombre, rol, turno, IF(activo=1,'Activo','Inactivo') AS estado FROM usuario;
+--   SELECT usuarioNombre, usuarioRol, usuarioTurno,
+--          IF(usuarioActivo=1,'Activo','Inactivo') AS estado
+--   FROM usuario;
 -- Productos bajo stock mínimo:
---   SELECT nombre, stockactual, stockminimo FROM producto WHERE stockactual <= stockminimo;
+--   SELECT productoNombre, productoStockActual, productoStockMinimo
+--   FROM producto WHERE productoStockActual <= productoStockMinimo;
 -- Efectivo esperado de un corte:
---   SELECT c.fondoinicial + COALESCE(SUM(v.total),0)
---   FROM corte c LEFT JOIN venta v ON v.idcorte=c.idcorte AND v.metodopago='Efectivo'
---   WHERE c.idcorte = ? GROUP BY c.idcorte;
+--   SELECT c.corteFondoInicial + COALESCE(SUM(v.ventaTotal),0)
+--   FROM corte c
+--   LEFT JOIN venta v ON v.ventaCorteId = c.corteId AND v.ventaMetodoPago = 'Efectivo'
+--   WHERE c.corteId = ? GROUP BY c.corteId;
